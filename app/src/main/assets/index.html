@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplikasi Nota Digital + Pelunasan</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background-color: #f3f4f6;
+            color: #1f2937;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .container { grid-template-columns: 1fr; }
+        }
+        .card {
+            background: #ffffff;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        h2 {
+            font-size: 1.25rem;
+            color: #111827;
+            margin-bottom: 16px;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 8px;
+        }
+        .form-group { margin-bottom: 14px; }
+        label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: #374151;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.875rem;
+        }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        button {
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.2s;
+        }
+        button:hover { background-color: #1d4ed8; }
+        .btn-pay {
+            background-color: #d97706;
+            margin-top: 10px;
+        }
+        .btn-pay:hover { background-color: #b45309; }
+        .btn-print {
+            background-color: #059669;
+            margin-top: 10px;
+        }
+        .btn-print:hover { background-color: #047857; }
+        .btn-new { background-color: #6b7280; margin-top: 10px; }
+        .btn-new:hover { background-color: #4b5563; }
+
+        /* Receipt Style */
+        .receipt {
+            background: #fff;
+            border: 1px dashed #9ca3af;
+            padding: 20px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.875rem;
+        }
+        .receipt-header {
+            text-align: center;
+            margin-bottom: 15px;
+            border-bottom: 1px dashed #000;
+            padding-bottom: 10px;
+        }
+        .receipt-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+        .divider {
+            border-bottom: 1px dashed #000;
+            margin: 10px 0;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+        }
+        .badge-cash { background-color: #d1fae5; color: #065f46; }
+        .badge-tempo { background-color: #fef3c7; color: #92400e; }
+        .badge-cicil { background-color: #dbeafe; color: #1e40af; }
+
+        /* Modal Popup Style */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background: white;
+            padding: 24px;
+            border-radius: 8px;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        @media print {
+            body * { visibility: hidden; }
+            .receipt-area, .receipt-area * { visibility: visible; }
+            .receipt-area { position: absolute; left: 0; top: 0; width: 100%; }
+            .btn-print, .btn-pay, .btn-new { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- FORM INPUT KASIR -->
+    <div class="card">
+        <h2>Input Transaksi & Pembayaran</h2>
+        
+        <div class="form-group">
+            <label>Nama Toko</label>
+            <input type="text" id="storeName" value="Toko Serba Ada" oninput="updateReceipt()">
+        </div>
+
+        <div class="grid-2">
+            <div class="form-group">
+                <label>Nama Barang</label>
+                <input type="text" id="itemName" placeholder="Contoh: Kopi">
+            </div>
+            <div class="form-group">
+                <label>Harga Satuan (Rp)</label>
+                <input type="number" id="itemPrice" placeholder="10000">
+            </div>
+        </div>
+        
+        <div class="grid-2">
+            <div class="form-group">
+                <label>Jumlah (Qty)</label>
+                <input type="number" id="itemQty" value="1">
+            </div>
+            <div class="form-group" style="display: flex; align-items: flex-end;">
+                <button type="button" onclick="addItem()">+ Tambah Barang</button>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Metode Pembayaran Utama</label>
+            <select id="paymentMethod" onchange="togglePaymentFields()">
+                <option value="CASH">Cash (Tunai)</option>
+                <option value="TEMPO">Tempo (Utang)</option>
+                <option value="CICIL">Cicilan</option>
+            </select>
+        </div>
+
+        <!-- CASH FIELDS -->
+        <div id="cashFields">
+            <div class="form-group">
+                <label>Nominal Bayar (Rp)</label>
+                <input type="number" id="cashPaid" value="0" oninput="updateReceipt()">
+            </div>
+        </div>
+
+        <!-- DEBTOR FIELDS -->
+        <div id="debtorFields" style="display: none;">
+            <div class="form-group">
+                <label>Nama Debitur / Pelanggan</label>
+                <input type="text" id="debtorName" placeholder="Nama Pembayar Utang" oninput="updateReceipt()">
+            </div>
+        </div>
+
+        <!-- TEMPO FIELDS -->
+        <div id="tempoFields" style="display: none;">
+            <div class="form-group">
+                <label>Tanggal Jatuh Tempo</label>
+                <input type="date" id="dueDate" onchange="updateReceipt()">
+            </div>
+        </div>
+
+        <!-- CICIL FIELDS -->
+        <div id="cicilFields" style="display: none;">
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>Uang Muka / DP (Rp)</label>
+                    <input type="number" id="downPayment" value="0" oninput="updateReceipt()">
+                </div>
+                <div class="form-group">
+                    <label>Tenor (Bulan)</label>
+                    <input type="number" id="tenor" value="3" oninput="updateReceipt()">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Jadwal Bayar Per Bulan (Tanggal)</label>
+                <input type="number" id="payDay" placeholder="Contoh: Tanggal 10" min="1" max="31" oninput="updateReceipt()">
+            </div>
+        </div>
+    </div>
+
+    <!-- PREVIEW NOTA DIGITAL -->
+    <div class="card receipt-area">
+        <h2>Preview Nota Digital</h2>
+        <div class="receipt" id="receiptOutput">
+            <div class="receipt-header">
+                <h3 id="recStoreName">Toko Serba Ada</h3>
+                <p style="font-size: 0.75rem;">Nota Digital Transaksi</p>
+                <p style="font-size: 0.75rem;" id="recDate"></p>
+            </div>
+
+            <div id="recDebtorInfo" style="margin-bottom: 10px; display: none;">
+                <strong>Debitur:</strong> <span id="recDebtorName">-</span>
+            </div>
+
+            <div class="divider"></div>
+
+            <div id="recItems">
+                <p style="text-align: center; color: #888;">Belum ada barang ditambahkan</p>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="receipt-row">
+                <span>TOTAL TRANSAKSI:</span>
+                <strong id="recTotal">Rp 0</strong>
+            </div>
+
+            <!-- DETAIL PEMBAYARAN DINAMIS -->
+            <div id="recPaymentDetails"></div>
+
+            <!-- RIWAYAT ANGSURAN / PELUNASAN -->
+            <div id="recPaymentHistory" style="margin-top: 8px;"></div>
+
+            <div class="divider"></div>
+            <div style="text-align: center;">
+                <span class="badge badge-cash" id="recStatusBadge">LUNAS</span>
+            </div>
+        </div>
+
+        <!-- TOMBOL BAYAR CICILAN / UTANG -->
+        <button class="btn-pay" id="btnOpenModal" style="display: none;" onclick="openPaymentModal()">+ Input Pembayaran Angsuran / Pelunasan</button>
+        <button class="btn-print" onclick="doPrint()">Cetak / Simpan PDF</button>
+        <button class="btn-new" onclick="newTransaction()">Transaksi Baru</button>
+    </div>
+</div>
+
+<!-- MODAL FORM INPUT ANGSURAN -->
+<div class="modal" id="paymentModal">
+    <div class="modal-content">
+        <h3>Bayar Angsuran / Utang</h3>
+        <p style="font-size: 0.8rem; margin-bottom: 12px; color: #666;">Sisa Tagihan: <strong id="modalRemaining">Rp 0</strong></p>
+        
+        <div class="form-group">
+            <label>Nominal Pembayaran (Rp)</label>
+            <input type="number" id="modalPayAmount" placeholder="Masukkan jumlah bayar">
+        </div>
+        <div class="form-group">
+            <label>Catatan / Keterangan</label>
+            <input type="text" id="modalPayNote" placeholder="Contoh: Angsuran Ke-1 / Pelunasan">
+        </div>
+
+        <div class="grid-2">
+            <button type="button" onclick="submitInstallment()">Simpan Bayar</button>
+            <button type="button" style="background-color: #6b7280;" onclick="closePaymentModal()">Batal</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let items = [];
+    let paymentHistory = []; // Menampung riwayat setoran/cicilan masuk
+
+    document.getElementById('recDate').innerText = new Date().toLocaleString('id-ID');
+
+    function togglePaymentFields() {
+        const method = document.getElementById('paymentMethod').value;
+        document.getElementById('cashFields').style.display = method === 'CASH' ? 'block' : 'none';
+        document.getElementById('debtorFields').style.display = method !== 'CASH' ? 'block' : 'none';
+        document.getElementById('tempoFields').style.display = method === 'TEMPO' ? 'block' : 'none';
+        document.getElementById('cicilFields').style.display = method === 'CICIL' ? 'block' : 'none';
+        
+        // Reset riwayat jika metode berubah
+        paymentHistory = [];
+        updateReceipt();
+    }
+
+    function addItem() {
+        const name = document.getElementById('itemName').value;
+        const price = parseFloat(document.getElementById('itemPrice').value);
+        const qty = parseInt(document.getElementById('itemQty').value);
+
+        if (!name || isNaN(price) || isNaN(qty) || qty <= 0) {
+            alert('Mohon isi nama barang, harga, dan jumlah dengan benar!');
+            return;
+        }
+
+        items.push({ name, price, qty, subtotal: price * qty });
+        document.getElementById('itemName').value = '';
+        document.getElementById('itemPrice').value = '';
+        document.getElementById('itemQty').value = '1';
+
+        updateReceipt();
+    }
+
+    function formatRp(val) {
+        return 'Rp ' + Number(val).toLocaleString('id-ID');
+    }
+
+    function updateReceipt() {
+        document.getElementById('recStoreName').innerText = document.getElementById('storeName').value || 'Toko Digital';
+
+        // Render Items
+        const recItems = document.getElementById('recItems');
+        let total = 0;
+
+        if (items.length === 0) {
+            recItems.innerHTML = '<p style="text-align: center; color: #888;">Belum ada barang ditambahkan</p>';
+        } else {
+            recItems.innerHTML = '';
+            items.forEach((item) => {
+                total += item.subtotal;
+                recItems.innerHTML += `
+                    <div class="receipt-row">
+                        <span>${esc(item.name)} x${item.qty}</span>
+                        <span>${formatRp(item.subtotal)}</span>
+                    </div>
+                `;
+            });
+        }
+
+        document.getElementById('recTotal').innerText = formatRp(total);
+
+        const method = document.getElementById('paymentMethod').value;
+        const recDebtorInfo = document.getElementById('recDebtorInfo');
+        const recPaymentDetails = document.getElementById('recPaymentDetails');
+        const recPaymentHistory = document.getElementById('recPaymentHistory');
+        const badge = document.getElementById('recStatusBadge');
+        const btnOpenModal = document.getElementById('btnOpenModal');
+
+        // Total yang sudah dibayar lewat riwayat modal
+        const totalHistoryPaid = paymentHistory.reduce((acc, curr) => acc + curr.amount, 0);
+
+        if (method === 'CASH') {
+            recDebtorInfo.style.display = 'none';
+            btnOpenModal.style.display = 'none';
+            recPaymentHistory.innerHTML = '';
+
+            const cashPaid = parseFloat(document.getElementById('cashPaid').value) || 0;
+            const change = cashPaid - total;
+
+            recPaymentDetails.innerHTML = `
+                <div class="receipt-row"><span>Bayar (Cash):</span><span>${formatRp(cashPaid)}</span></div>
+                <div class="receipt-row"><span>Kembali:</span><span>${formatRp(change > 0 ? change : 0)}</span></div>
+            `;
+            badge.className = 'badge badge-cash';
+            badge.innerText = 'LUNAS';
+
+        } else if (method === 'TEMPO') {
+            const debtor = document.getElementById('debtorName').value || '-';
+            const dueDate = document.getElementById('dueDate').value || '-';
+            
+            recDebtorInfo.style.display = 'block';
+            btnOpenModal.style.display = 'block';
+            document.getElementById('recDebtorName').innerText = debtor;
+
+            const remaining = total - totalHistoryPaid;
+
+            recPaymentDetails.innerHTML = `
+                <div class="receipt-row"><span>Metode:</span><span>TEMPO (UTANG)</span></div>
+                <div class="receipt-row"><span>Jatuh Tempo:</span><span>${dueDate}</span></div>
+                <div class="receipt-row"><span>Total Dibayar:</span><span>${formatRp(totalHistoryPaid)}</span></div>
+                <div class="receipt-row"><span>Sisa Utang:</span><span><strong>${formatRp(remaining > 0 ? remaining : 0)}</strong></span></div>
+            `;
+
+            renderHistoryUI();
+
+            if (remaining <= 0 && total > 0) {
+                badge.className = 'badge badge-cash';
+                badge.innerText = 'LUNAS';
+            } else {
+                badge.className = 'badge badge-tempo';
+                badge.innerText = 'BELUM LUNAS (TEMPO)';
+            }
+
+        } else if (method === 'CICIL') {
+            const debtor = document.getElementById('debtorName').value || '-';
+            const dp = parseFloat(document.getElementById('downPayment').value) || 0;
+            const tenor = parseInt(document.getElementById('tenor').value) || 1;
+            const payDay = document.getElementById('payDay').value || '-';
+
+            recDebtorInfo.style.display = 'block';
+            btnOpenModal.style.display = 'block';
+            document.getElementById('recDebtorName').innerText = debtor;
+
+            const remaining = total - dp - totalHistoryPaid;
+            const monthlyPayment = (total - dp) > 0 ? (total - dp) / tenor : 0;
+
+            recPaymentDetails.innerHTML = `
+                <div class="receipt-row"><span>Uang Muka (DP):</span><span>${formatRp(dp)}</span></div>
+                <div class="receipt-row"><span>Tenor:</span><span>${tenor} Bulan</span></div>
+                <div class="receipt-row"><span>Angsuran/Bln:</span><span>${formatRp(monthlyPayment)}</span></div>
+                <div class="receipt-row"><span>Jadwal Bayar:</span><span>Tgl ${payDay} / Bln</span></div>
+                <div class="receipt-row"><span>Total Terbayar:</span><span>${formatRp(dp + totalHistoryPaid)}</span></div>
+                <div class="receipt-row"><span>Sisa Tagihan:</span><span><strong>${formatRp(remaining > 0 ? remaining : 0)}</strong></span></div>
+            `;
+
+            renderHistoryUI();
+
+            if (remaining <= 0 && total > 0) {
+                badge.className = 'badge badge-cash';
+                badge.innerText = 'LUNAS';
+            } else {
+                badge.className = 'badge badge-cicil';
+                badge.innerText = 'CICILAN BERJALAN';
+            }
+        }
+    }
+
+    function renderHistoryUI() {
+        const recPaymentHistory = document.getElementById('recPaymentHistory');
+        if (paymentHistory.length > 0) {
+            let html = '<div class="divider"></div><p style="font-weight:bold; font-size:0.75rem;">RIWAYAT SETORAN:</p>';
+            paymentHistory.forEach((h, idx) => {
+                html += `
+                    <div class="receipt-row" style="font-size:0.75rem; color:#4b5563;">
+                        <span>${idx + 1}. ${esc(h.note)} (${h.date})</span>
+                        <span>${formatRp(h.amount)}</span>
+                    </div>
+                `;
+            });
+            recPaymentHistory.innerHTML = html;
+        } else {
+            recPaymentHistory.innerHTML = '';
+        }
+    }
+
+    /* LOGIC MODAL POPUP */
+    function openPaymentModal() {
+        const method = document.getElementById('paymentMethod').value;
+        let total = items.reduce((acc, item) => acc + item.subtotal, 0);
+        let dp = method === 'CICIL' ? (parseFloat(document.getElementById('downPayment').value) || 0) : 0;
+        let totalHistoryPaid = paymentHistory.reduce((acc, curr) => acc + curr.amount, 0);
+        
+        let currentRemaining = total - dp - totalHistoryPaid;
+        
+        document.getElementById('modalRemaining').innerText = formatRp(currentRemaining > 0 ? currentRemaining : 0);
+        document.getElementById('paymentModal').style.display = 'flex';
+    }
+
+    function closePaymentModal() {
+        document.getElementById('paymentModal').style.display = 'none';
+        document.getElementById('modalPayAmount').value = '';
+        document.getElementById('modalPayNote').value = '';
+    }
+
+    function submitInstallment() {
+        const amount = parseFloat(document.getElementById('modalPayAmount').value);
+        const note = document.getElementById('modalPayNote').value || 'Setoran Angsuran';
+
+        if (isNaN(amount) || amount <= 0) {
+            alert('Masukkan nominal pembayaran yang valid!');
+            return;
+        }
+
+        const dateStr = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit' });
+        paymentHistory.push({ amount, note, date: dateStr });
+
+        closePaymentModal();
+        updateReceipt();
+    }
+
+    /* ====== TAMBAHAN UNTUK ANDROID ====== */
+    function esc(t) {
+        return String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    // Cetak: pakai fitur cetak Android (bisa "Simpan sebagai PDF") bila di dalam aplikasi
+    function doPrint() {
+        if (window.AndroidBridge && AndroidBridge.print) AndroidBridge.print();
+        else window.print();
+    }
+
+    // Simpan otomatis agar data tidak hilang saat aplikasi ditutup
+    const FIELDS = ['storeName','paymentMethod','cashPaid','debtorName','dueDate','downPayment','tenor','payDay'];
+    const _renderReceipt = updateReceipt;
+    updateReceipt = function () {
+        _renderReceipt();
+        saveState();
+    };
+
+    function saveState() {
+        try {
+            const fields = {};
+            FIELDS.forEach(f => fields[f] = document.getElementById(f).value);
+            localStorage.setItem('notaDigitalState', JSON.stringify({
+                items, paymentHistory, fields,
+                date: document.getElementById('recDate').innerText
+            }));
+        } catch (e) {}
+    }
+
+    function restoreState() {
+        try {
+            const raw = localStorage.getItem('notaDigitalState');
+            if (!raw) return;
+            const st = JSON.parse(raw);
+            FIELDS.forEach(f => {
+                if (st.fields && st.fields[f] !== undefined) document.getElementById(f).value = st.fields[f];
+            });
+            items = st.items || [];
+            if (st.date) document.getElementById('recDate').innerText = st.date;
+            togglePaymentFields();            // atur tampilan kolom (sekaligus mengosongkan riwayat)
+            paymentHistory = st.paymentHistory || [];
+            updateReceipt();
+        } catch (e) {}
+    }
+
+    function newTransaction() {
+        if (!confirm('Mulai transaksi baru? Data nota saat ini akan dihapus.')) return;
+        items = [];
+        paymentHistory = [];
+        ['cashPaid','downPayment'].forEach(id => document.getElementById(id).value = '0');
+        document.getElementById('tenor').value = '3';
+        ['debtorName','dueDate','payDay'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('paymentMethod').value = 'CASH';
+        document.getElementById('recDate').innerText = new Date().toLocaleString('id-ID');
+        togglePaymentFields();
+    }
+
+    restoreState();
+</script>
+
+</body>
+</html>
